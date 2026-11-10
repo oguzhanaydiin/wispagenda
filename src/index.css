@@ -1,0 +1,12 @@
+@import "tailwindcss";
+@import "wispui/theme.css";
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+.dark .agenda-nav a[aria-current="page"] {
+  background-color: var(--color-neutral-800);
+}

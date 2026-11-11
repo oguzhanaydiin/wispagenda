@@ -20,6 +20,8 @@ export type Task = {
   space: string;
 };
 
+export const blockKinds: BlockKind[] = ["Class", "Focus", "Meeting", "Break"];
+
 export const kindColor: Record<BlockKind, Color> = {
   Class: "info",
   Focus: "primary",

@@ -1,17 +1,14 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { WBadge, WButton, WCard, WFormField, WInput, WModal, WSelect } from "wispui";
-import { kindColor, looseTasks, todayBlocks, type Block, type BlockKind, type BlockStatus, type Task } from "../sample";
+import { useEffect, useRef, useState } from "react";
+import { WBadge, WButton, WCard } from "wispui";
+import { useDay } from "../day";
+import { kindColor, type Block, type BlockKind, type Task } from "../sample";
+import { TimeDialog } from "../TimeDialog";
+import { formatClock, toMinutes } from "../time";
 
 export function TodayPage() {
-  const now = useMinuteClock();
-  const [blocks, setBlocks] = useState(todayBlocks);
-  const [tasks, setTasks] = useState(looseTasks);
+  const { blocks, tasks, now, setStatus, addTask, schedule } = useDay();
   const [addOpen, setAddOpen] = useState(false);
   const [scheduling, setScheduling] = useState<Task | null>(null);
-  const [modalTitle, setModalTitle] = useState("");
-  const [modalStart, setModalStart] = useState("");
-  const [modalEnd, setModalEnd] = useState("");
-  const [modalTag, setModalTag] = useState<BlockKind>("Focus");
   const label = formatClock(now);
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const isOpen = (block: Block) => block.status !== "done" && block.status !== "skipped";
@@ -20,56 +17,35 @@ export function TodayPage() {
   const next = blocks.find((block) => isOpen(block) && toMinutes(block.time) > nowMinutes);
   const summary = active ? `Now · ${active.title}` : next ? `Next · ${next.time}–${next.end} ${next.title}` : "The day is done.";
 
-  function addItem(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const span = rangeFrom(modalStart, modalEnd);
+  function saveItem(value: { title: string; start: string; end: string; kind: BlockKind }) {
     if (scheduling) {
-      if (!span) return;
-      const block: Block = {
-        id: crypto.randomUUID(),
-        ...span,
+      const saved = schedule({
         title: scheduling.title,
         space: scheduling.space,
-        kind: modalTag,
-      };
-      setBlocks((items) => [...items, block].sort((a, b) => toMinutes(a.time) - toMinutes(b.time)));
-      setTasks((items) => items.filter((item) => item.id !== scheduling.id));
-      setScheduling(null);
+        start: value.start,
+        end: value.end,
+        kind: value.kind,
+        taskId: scheduling.id,
+      });
+      if (saved) setScheduling(null);
       return;
     }
-    const title = modalTitle.trim();
-    if (!title) return;
-    if (span) {
-      const block: Block = { id: crypto.randomUUID(), ...span, title, space: "", kind: modalTag };
-      setBlocks((items) => [...items, block].sort((a, b) => toMinutes(a.time) - toMinutes(b.time)));
-    } else {
-      const task: Task = { id: crypto.randomUUID(), title, space: "" };
-      setTasks((items) => [...items, task]);
+    if (value.start.slice(0, 5)) {
+      if (schedule({ title: value.title, start: value.start, end: value.end, kind: value.kind })) setAddOpen(false);
+      return;
     }
+    addTask(value.title);
     setAddOpen(false);
   }
 
   function openAdd() {
     setScheduling(null);
-    setModalTitle("");
-    setModalStart("");
-    setModalEnd("");
-    setModalTag("Focus");
     setAddOpen(true);
   }
 
   function openSchedule(task: Task) {
     setAddOpen(false);
-    setModalStart("");
-    setModalEnd("");
-    setModalTag("Focus");
     setScheduling(task);
-  }
-
-  function setBlockStatus(id: string, status: BlockStatus) {
-    setBlocks((items) =>
-      items.map((item) => (item.id === id ? { ...item, status: item.status === status ? undefined : status } : item)),
-    );
   }
 
   return (
@@ -80,8 +56,8 @@ export function TodayPage() {
             blocks={blocks}
             nowMinutes={nowMinutes}
             label={label}
-            onDone={(id) => setBlockStatus(id, "done")}
-            onSkip={(id) => setBlockStatus(id, "skipped")}
+            onDone={(id) => setStatus(id, "done")}
+            onSkip={(id) => setStatus(id, "skipped")}
           />
         </WCard>
 
@@ -115,70 +91,20 @@ export function TodayPage() {
         className="fixed right-5 bottom-5 z-30 shadow-lg"
         style={{ width: 56, height: 56, padding: 0, borderRadius: 9999 }}
       />
-      <WModal
+      <TimeDialog
         open={addOpen || scheduling !== null}
+        title={scheduling ? "Schedule" : "Add"}
+        description={scheduling ? scheduling.title : "A start and end put it on the day. Leave both empty and it stays off the clock."}
+        titleEditable={scheduling === null}
+        timeRequired={scheduling !== null}
+        submitLabel={scheduling ? "Schedule" : "Add"}
         onOpenChange={(open) => {
           if (open) return;
           setAddOpen(false);
           setScheduling(null);
         }}
-        size="sm"
-        title={scheduling ? "Schedule" : "Add"}
-        description={scheduling ? scheduling.title : "A start and end put it on the day. Leave both empty and it stays off the clock."}
-        footer={({ close }) => (
-          <>
-            <WButton color="neutral" variant="ghost" onClick={close}>
-              Cancel
-            </WButton>
-            <WButton type="submit" form="add-item" icon="plus">
-              {scheduling ? "Schedule" : "Add"}
-            </WButton>
-          </>
-        )}
-      >
-        <form id="add-item" className="space-y-4" onSubmit={addItem}>
-          {scheduling ? null : (
-            <WFormField label="Title">
-              <WInput
-                required
-                autoFocus
-                aria-label="Title"
-                placeholder="What needs doing"
-                value={modalTitle}
-                onChange={(event) => setModalTitle(event.currentTarget.value)}
-              />
-            </WFormField>
-          )}
-          <div className="grid grid-cols-2 gap-3">
-            <WFormField label="Starts" hint={scheduling ? undefined : "Optional"}>
-              <WInput
-                type="time"
-                required={scheduling !== null}
-                autoFocus={scheduling !== null}
-                aria-label="Starts"
-                value={modalStart}
-                onChange={(event) => setModalStart(event.currentTarget.value)}
-              />
-            </WFormField>
-            <WFormField label="Ends" hint="Optional">
-              <WInput
-                type="time"
-                aria-label="Ends"
-                value={modalEnd}
-                onChange={(event) => setModalEnd(event.currentTarget.value)}
-              />
-            </WFormField>
-          </div>
-          <WFormField label="Tag">
-            <WSelect
-              aria-label="Tag"
-              items={tags}
-              value={modalTag}
-              onChange={(event) => setModalTag(event.currentTarget.value as BlockKind)}
-            />
-          </WFormField>
-        </form>
-      </WModal>
+        onSubmit={saveItem}
+      />
     </>
   );
 }
@@ -325,6 +251,10 @@ function NowTime({ time }: { time: string }) {
   );
 }
 
+function pad(value: number) {
+  return String(value).padStart(2, "0");
+}
+
 function dayBounds(blocks: Block[], nowMinutes: number) {
   if (blocks.length === 0) {
     const hour = Math.floor(nowMinutes / 60) * 60;
@@ -370,80 +300,3 @@ function placeBlocks(blocks: Block[]) {
   return placed;
 }
 
-const tags: BlockKind[] = ["Class", "Focus", "Meeting", "Break"];
-
-function rangeFrom(start: string, end: string) {
-  const time = start.slice(0, 5);
-  if (!time) return null;
-  let finish = end.slice(0, 5);
-  if (!finish || toMinutes(finish) <= toMinutes(time)) finish = fromMinutes(Math.min(toMinutes(time) + 60, 23 * 60 + 59));
-  return { time, end: finish };
-}
-
-function fromMinutes(total: number) {
-  return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
-}
-
-function useMinuteClock() {
-  const [now, setNow] = useState(() => new Date());
-
-  useEffect(() => {
-    let timer = 0;
-
-    const sync = () => {
-      const next = new Date();
-      setNow((prev) => (sameMinute(prev, next) ? prev : next));
-    };
-
-    const arm = () => {
-      window.clearTimeout(timer);
-      if (document.hidden) return;
-      const wait = 60_000 - (Date.now() % 60_000);
-      timer = window.setTimeout(() => {
-        sync();
-        arm();
-      }, wait);
-    };
-
-    const onVisibility = () => {
-      if (document.hidden) {
-        window.clearTimeout(timer);
-        return;
-      }
-      sync();
-      arm();
-    };
-
-    arm();
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      window.clearTimeout(timer);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, []);
-
-  return now;
-}
-
-function sameMinute(left: Date, right: Date) {
-  return (
-    left.getFullYear() === right.getFullYear() &&
-    left.getMonth() === right.getMonth() &&
-    left.getDate() === right.getDate() &&
-    left.getHours() === right.getHours() &&
-    left.getMinutes() === right.getMinutes()
-  );
-}
-
-function formatClock(date: Date) {
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function toMinutes(time: string) {
-  const [hours, minutes] = time.split(":").map(Number);
-  return hours * 60 + minutes;
-}
-
-function pad(value: number) {
-  return String(value).padStart(2, "0");
-}

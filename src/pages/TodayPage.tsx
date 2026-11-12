@@ -6,9 +6,10 @@ import { TimeDialog } from "../TimeDialog";
 import { formatClock, toMinutes } from "../time";
 
 export function TodayPage() {
-  const { blocks, tasks, now, setStatus, addTask, schedule } = useDay();
+  const { blocks, tasks, now, setStatus, addTask, schedule, updateBlock, removeBlock } = useDay();
   const [addOpen, setAddOpen] = useState(false);
   const [scheduling, setScheduling] = useState<Task | null>(null);
+  const [editing, setEditing] = useState<Block | null>(null);
   const label = formatClock(now);
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const isOpen = (block: Block) => block.status !== "done" && block.status !== "skipped";
@@ -18,6 +19,10 @@ export function TodayPage() {
   const summary = active ? `Now · ${active.title}` : next ? `Next · ${next.time}–${next.end} ${next.title}` : "The day is done.";
 
   function saveItem(value: { title: string; start: string; end: string; kind: BlockKind }) {
+    if (editing) {
+      if (updateBlock(editing.id, value)) setEditing(null);
+      return;
+    }
     if (scheduling) {
       const saved = schedule({
         title: scheduling.title,
@@ -40,12 +45,20 @@ export function TodayPage() {
 
   function openAdd() {
     setScheduling(null);
+    setEditing(null);
     setAddOpen(true);
   }
 
   function openSchedule(task: Task) {
     setAddOpen(false);
+    setEditing(null);
     setScheduling(task);
+  }
+
+  function openEdit(block: Block) {
+    setAddOpen(false);
+    setScheduling(null);
+    setEditing(block);
   }
 
   return (
@@ -58,6 +71,7 @@ export function TodayPage() {
             label={label}
             onDone={(id) => setStatus(id, "done")}
             onSkip={(id) => setStatus(id, "skipped")}
+            onEdit={openEdit}
           />
         </WCard>
 
@@ -92,16 +106,29 @@ export function TodayPage() {
         style={{ width: 56, height: 56, padding: 0, borderRadius: 9999 }}
       />
       <TimeDialog
-        open={addOpen || scheduling !== null}
-        title={scheduling ? "Schedule" : "Add"}
-        description={scheduling ? scheduling.title : "A start and end put it on the day. Leave both empty and it stays off the clock."}
+        open={addOpen || scheduling !== null || editing !== null}
+        title={editing ? "Edit" : scheduling ? "Schedule" : "Add"}
+        description={
+          editing
+            ? "Change this block, or take it off the clock."
+            : scheduling
+              ? scheduling.title
+              : "A start and end put it on the day. Leave both empty and it stays off the clock."
+        }
+        initialTitle={editing?.title ?? ""}
+        initialStart={editing?.time ?? ""}
+        initialEnd={editing?.end ?? ""}
+        initialKind={editing?.kind ?? "Focus"}
         titleEditable={scheduling === null}
-        timeRequired={scheduling !== null}
-        submitLabel={scheduling ? "Schedule" : "Add"}
+        timeRequired={scheduling !== null || editing !== null}
+        submitLabel={editing ? "Save" : scheduling ? "Schedule" : "Add"}
+        submitIcon={editing ? "check" : "plus"}
+        onDelete={editing ? () => removeBlock(editing.id) : undefined}
         onOpenChange={(open) => {
           if (open) return;
           setAddOpen(false);
           setScheduling(null);
+          setEditing(null);
         }}
         onSubmit={saveItem}
       />
@@ -126,12 +153,14 @@ function DayGrid({
   label,
   onDone,
   onSkip,
+  onEdit,
 }: {
   blocks: Block[];
   nowMinutes: number;
   label: string;
   onDone: (id: string) => void;
   onSkip: (id: string) => void;
+  onEdit: (block: Block) => void;
 }) {
   const nowRef = useRef<HTMLDivElement>(null);
   const placed = placeBlocks(blocks);
@@ -181,7 +210,7 @@ function DayGrid({
         return (
           <div
             key={block.id}
-            className={`absolute overflow-hidden rounded-md border px-2 py-1 ${kindBlock[block.kind]} ${quiet ? "opacity-45" : ""} ${current ? "ring-1 ring-primary-500" : ""}`}
+            className={`absolute overflow-hidden rounded-md border ${kindBlock[block.kind]} ${quiet ? "opacity-45" : ""} ${current ? "ring-1 ring-primary-500" : ""}`}
             style={{
               top: y(start) + 1,
               height,
@@ -190,19 +219,26 @@ function DayGrid({
             }}
             aria-current={current ? "time" : undefined}
           >
-            <div className="flex min-w-0 items-center gap-2 pr-14">
-              <div className={`min-w-0 flex-1 truncate text-sm ${quiet ? "font-normal" : "font-medium"}`}>{block.title}</div>
-              <WBadge color={kindColor[block.kind]} variant="subtle" size="sm">
-                {block.kind}
-              </WBadge>
-            </div>
-            {roomy ? (
-              <div className="truncate pr-14 text-xs text-neutral-500 tabular-nums dark:text-neutral-400">
-                {block.time}–{block.end}
+            <button
+              type="button"
+              className="h-full w-full px-2 py-1 text-left"
+              aria-label={`Edit ${block.title}`}
+              onClick={() => onEdit(block)}
+            >
+              <div className="flex min-w-0 items-center gap-2 pr-14">
+                <div className={`min-w-0 flex-1 truncate text-sm ${quiet ? "font-normal" : "font-medium"}`}>{block.title}</div>
+                <WBadge color={kindColor[block.kind]} variant="subtle" size="sm">
+                  {block.kind}
+                </WBadge>
               </div>
-            ) : null}
-            {roomy && detail ? <div className="truncate pr-14 text-xs text-neutral-400">{detail}</div> : null}
-            <div className="absolute top-1 right-1 flex gap-0.5">
+              {roomy ? (
+                <div className="truncate pr-14 text-xs text-neutral-500 tabular-nums dark:text-neutral-400">
+                  {block.time}–{block.end}
+                </div>
+              ) : null}
+              {roomy && detail ? <div className="truncate pr-14 text-xs text-neutral-400">{detail}</div> : null}
+            </button>
+            <div className="absolute top-1 right-1 z-10 flex gap-0.5">
               <WButton
                 size="sm"
                 icon="check"

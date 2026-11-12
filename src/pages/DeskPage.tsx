@@ -357,6 +357,9 @@ export function DeskPage() {
         }}
         fullscreen
         title={preview?.caption || "Picture"}
+        close={
+          <WButton color="neutral" variant="subtle" size="sm" icon="x" aria-label="Close" onClick={() => setPreview(null)} />
+        }
       >
         {preview ? (
           <img

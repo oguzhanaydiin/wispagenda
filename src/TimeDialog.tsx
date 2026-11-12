@@ -7,34 +7,44 @@ export function TimeDialog({
   title,
   description,
   initialTitle = "",
+  initialStart = "",
+  initialEnd = "",
+  initialKind = "Focus",
   titleEditable = true,
   timeRequired = false,
   submitLabel,
+  submitIcon = "plus",
   onOpenChange,
   onSubmit,
+  onDelete,
 }: {
   open: boolean;
   title: string;
   description: string;
   initialTitle?: string;
+  initialStart?: string;
+  initialEnd?: string;
+  initialKind?: BlockKind;
   titleEditable?: boolean;
   timeRequired?: boolean;
   submitLabel: string;
+  submitIcon?: "plus" | "check";
   onOpenChange: (open: boolean) => void;
   onSubmit: (value: { title: string; start: string; end: string; kind: BlockKind }) => void;
+  onDelete?: () => void;
 }) {
   const [itemTitle, setItemTitle] = useState(initialTitle);
-  const [start, setStart] = useState("");
-  const [end, setEnd] = useState("");
-  const [kind, setKind] = useState<BlockKind>("Focus");
+  const [start, setStart] = useState(initialStart);
+  const [end, setEnd] = useState(initialEnd);
+  const [kind, setKind] = useState<BlockKind>(initialKind);
 
   useEffect(() => {
     if (!open) return;
     setItemTitle(initialTitle);
-    setStart("");
-    setEnd("");
-    setKind("Focus");
-  }, [open, initialTitle]);
+    setStart(initialStart);
+    setEnd(initialEnd);
+    setKind(initialKind);
+  }, [open, initialTitle, initialStart, initialEnd, initialKind]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,14 +58,32 @@ export function TimeDialog({
       size="sm"
       title={title}
       description={description}
+      close={
+        <WButton color="neutral" variant="subtle" size="sm" icon="x" aria-label="Close" onClick={() => onOpenChange(false)} />
+      }
       footer={({ close }) => (
         <>
-          <WButton color="neutral" variant="ghost" onClick={close}>
-            Cancel
-          </WButton>
-          <WButton type="submit" form="time-form" icon="plus">
-            {submitLabel}
-          </WButton>
+          {onDelete ? (
+            <WButton
+              color="error"
+              variant="subtle"
+              icon="trash"
+              onClick={() => {
+                onDelete();
+                close();
+              }}
+            >
+              Delete
+            </WButton>
+          ) : null}
+          <div className={onDelete ? "ml-auto flex gap-2" : "contents"}>
+            <WButton color="neutral" variant="subtle" onClick={close}>
+              Cancel
+            </WButton>
+            <WButton type="submit" form="time-form" icon={submitIcon}>
+              {submitLabel}
+            </WButton>
+          </div>
         </>
       )}
     >

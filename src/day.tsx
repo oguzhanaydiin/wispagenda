@@ -11,6 +11,13 @@ type ScheduleInput = {
   taskId?: string;
 };
 
+type BlockInput = {
+  title: string;
+  start: string;
+  end: string;
+  kind: BlockKind;
+};
+
 type DayValue = {
   blocks: Block[];
   tasks: Task[];
@@ -18,6 +25,8 @@ type DayValue = {
   setStatus: (id: string, status: BlockStatus) => void;
   addTask: (title: string, space?: string) => void;
   schedule: (input: ScheduleInput) => boolean;
+  updateBlock: (id: string, input: BlockInput) => boolean;
+  removeBlock: (id: string) => void;
 };
 
 const DayContext = createContext<DayValue | null>(null);
@@ -55,6 +64,20 @@ export function DayProvider({ children }: { children: ReactNode }) {
       setBlocks((items) => [...items, block].sort((a, b) => toMinutes(a.time) - toMinutes(b.time)));
       if (input.taskId) setTasks((items) => items.filter((item) => item.id !== input.taskId));
       return true;
+    },
+    updateBlock(id, input) {
+      const span = rangeFrom(input.start, input.end);
+      const title = input.title.trim();
+      if (!span || !title) return false;
+      setBlocks((items) =>
+        items
+          .map((item) => (item.id === id ? { ...item, ...span, title, kind: input.kind } : item))
+          .sort((a, b) => toMinutes(a.time) - toMinutes(b.time)),
+      );
+      return true;
+    },
+    removeBlock(id) {
+      setBlocks((items) => items.filter((item) => item.id !== id));
     },
   };
 

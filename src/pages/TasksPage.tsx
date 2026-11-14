@@ -5,7 +5,7 @@ import type { BlockKind, Task } from "../sample";
 import { TimeDialog } from "../TimeDialog";
 
 export function TasksPage() {
-  const { tasks, addTask, schedule } = useDay();
+  const { tasks, addTask, removeTask, schedule } = useDay();
   const [title, setTitle] = useState("");
   const [scheduling, setScheduling] = useState<Task | null>(null);
 
@@ -59,6 +59,14 @@ export function TasksPage() {
                 <WButton size="sm" variant="subtle" color="neutral" onClick={() => setScheduling(task)}>
                   Schedule
                 </WButton>
+                <WButton
+                  size="sm"
+                  variant="subtle"
+                  color="error"
+                  icon="trash"
+                  aria-label={`Remove ${task.title}`}
+                  onClick={() => removeTask(task.id)}
+                />
               </li>
             ))}
           </ul>

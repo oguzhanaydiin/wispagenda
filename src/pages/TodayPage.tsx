@@ -6,7 +6,7 @@ import { TimeDialog } from "../TimeDialog";
 import { formatClock, toMinutes } from "../time";
 
 export function TodayPage() {
-  const { blocks, tasks, now, setStatus, addTask, schedule, updateBlock, removeBlock } = useDay();
+  const { blocks, tasks, now, setStatus, addTask, removeTask, schedule, updateBlock, removeBlock } = useDay();
   const [addOpen, setAddOpen] = useState(false);
   const [scheduling, setScheduling] = useState<Task | null>(null);
   const [editing, setEditing] = useState<Block | null>(null);
@@ -91,6 +91,14 @@ export function TodayPage() {
                   <WButton size="sm" variant="subtle" color="neutral" onClick={() => openSchedule(task)}>
                     Schedule
                   </WButton>
+                  <WButton
+                    size="sm"
+                    variant="subtle"
+                    color="error"
+                    icon="trash"
+                    aria-label={`Remove ${task.title}`}
+                    onClick={() => removeTask(task.id)}
+                  />
                 </li>
               ))}
             </ul>

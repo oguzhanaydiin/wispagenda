@@ -24,6 +24,7 @@ type DayValue = {
   now: Date;
   setStatus: (id: string, status: BlockStatus) => void;
   addTask: (title: string, space?: string) => void;
+  removeTask: (id: string) => void;
   schedule: (input: ScheduleInput) => boolean;
   updateBlock: (id: string, input: BlockInput) => boolean;
   removeBlock: (id: string) => void;
@@ -49,6 +50,9 @@ export function DayProvider({ children }: { children: ReactNode }) {
       const trimmed = title.trim();
       if (!trimmed) return;
       setTasks((items) => [...items, { id: crypto.randomUUID(), title: trimmed, space }]);
+    },
+    removeTask(id) {
+      setTasks((items) => items.filter((item) => item.id !== id));
     },
     schedule(input) {
       const span = rangeFrom(input.start, input.end);

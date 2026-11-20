@@ -6,7 +6,7 @@ import { TimeDialog } from "../TimeDialog";
 import { formatClock, toMinutes } from "../time";
 
 export function TodayPage() {
-  const { blocks, tasks, now, setStatus, addTask, removeTask, schedule, updateBlock, removeBlock } = useDay();
+  const { blocks, tasks, now, isToday, setStatus, addTask, removeTask, schedule, updateBlock, removeBlock } = useDay();
   const [addOpen, setAddOpen] = useState(false);
   const [scheduling, setScheduling] = useState<Task | null>(null);
   const [editing, setEditing] = useState<Block | null>(null);
@@ -16,7 +16,13 @@ export function TodayPage() {
   const holdsNow = (block: Block) => nowMinutes >= toMinutes(block.time) && nowMinutes < toMinutes(block.end);
   const active = blocks.find((block) => isOpen(block) && holdsNow(block));
   const next = blocks.find((block) => isOpen(block) && toMinutes(block.time) > nowMinutes);
-  const summary = active ? `Now · ${active.title}` : next ? `Next · ${next.time}–${next.end} ${next.title}` : "The day is done.";
+  const summary = active
+    ? `Now · ${active.title}`
+    : next
+      ? `Next · ${next.time}–${next.end} ${next.title}`
+      : blocks.length === 0
+        ? "Nothing on the clock."
+        : "The day is done.";
 
   function saveItem(value: { title: string; start: string; end: string; kind: BlockKind }) {
     if (editing) {
@@ -72,6 +78,7 @@ export function TodayPage() {
             onDone={(id) => setStatus(id, "done")}
             onSkip={(id) => setStatus(id, "skipped")}
             onEdit={openEdit}
+            showNow={isToday}
           />
         </WCard>
 
@@ -162,6 +169,7 @@ function DayGrid({
   onDone,
   onSkip,
   onEdit,
+  showNow,
 }: {
   blocks: Block[];
   nowMinutes: number;
@@ -169,13 +177,14 @@ function DayGrid({
   onDone: (id: string) => void;
   onSkip: (id: string) => void;
   onEdit: (block: Block) => void;
+  showNow: boolean;
 }) {
   const nowRef = useRef<HTMLDivElement>(null);
   const placed = placeBlocks(blocks);
   const { start, end } = dayBounds(blocks, nowMinutes);
   const hours: number[] = [];
   for (let hour = start / 60; hour < end / 60; hour += 1) hours.push(hour);
-  const edge = nowMinutes < start ? "top" : nowMinutes > end ? "bottom" : "inside";
+  const edge = !showNow ? "inside" : nowMinutes < start ? "top" : nowMinutes > end ? "bottom" : "inside";
   const y = (minutes: number) => (edge === "top" ? EDGE : 0) + TOP + ((minutes - start) / 60) * HOUR;
   const nowTop = edge === "top" ? 14 : edge === "bottom" ? y(end) + 22 : y(nowMinutes);
 
@@ -186,7 +195,7 @@ function DayGrid({
   return (
     <div className="relative" style={{ height: y(end) + (edge === "bottom" ? EDGE : 12) }}>
       {hours.map((hour) => {
-        const hidden = edge === "inside" && Math.abs(hour * 60 - nowMinutes) < 18;
+        const hidden = showNow && edge === "inside" && Math.abs(hour * 60 - nowMinutes) < 18;
         return (
           <div key={hour} className="absolute right-0 left-0" style={{ top: y(hour * 60) }}>
             <div className="absolute top-0 left-0 w-14 -translate-y-1/2 pr-2 text-right text-[11px] tabular-nums text-neutral-400">
@@ -268,18 +277,22 @@ function DayGrid({
         );
       })}
 
-      <div
-        ref={nowRef}
-        className="pointer-events-none absolute right-0 left-14 z-20"
-        style={{ top: nowTop }}
-        aria-current="time"
-      >
-        <span className="absolute top-0 left-0 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary-500" />
-        <span className="absolute inset-x-0 top-0 h-0.5 -translate-y-1/2 bg-primary-500" />
-      </div>
-      <div className="absolute left-0 z-20 w-14 -translate-y-1/2 pr-2 text-right" style={{ top: nowTop }}>
-        <NowTime time={label} />
-      </div>
+      {showNow ? (
+        <>
+          <div
+            ref={nowRef}
+            className="pointer-events-none absolute right-0 left-14 z-20"
+            style={{ top: nowTop }}
+            aria-current="time"
+          >
+            <span className="absolute top-0 left-0 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary-500" />
+            <span className="absolute inset-x-0 top-0 h-0.5 -translate-y-1/2 bg-primary-500" />
+          </div>
+          <div className="absolute left-0 z-20 w-14 -translate-y-1/2 pr-2 text-right" style={{ top: nowTop }}>
+            <NowTime time={label} />
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

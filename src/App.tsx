@@ -9,7 +9,7 @@ import { AppShell } from "./shell/AppShell";
 const pages = {
   "/": { title: "Today", description: "What is on the clock, and what is still loose.", page: TodayPage },
   "/desk": { title: "Desk", description: "Notes and pictures for this day.", page: DeskPage },
-  "/week": { title: "Week", description: "This week, with today filled in.", page: WeekPage },
+  "/week": { title: "Week", description: "Each day keeps its own clock.", page: WeekPage },
   "/tasks": { title: "Tasks", description: "What is still loose.", page: TasksPage },
   "/review": { title: "Review", description: "How the day went.", page: ReviewPage },
 } as const;

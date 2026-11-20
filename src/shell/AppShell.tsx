@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
-import { WNav, WNavMenu } from "wispui";
+import { WButton, WNav, WNavMenu } from "wispui";
+import { useDay } from "../day";
+import { formatDay } from "../days";
 import { navItems } from "../nav";
 import { ThemeButton } from "../theme";
 
@@ -12,11 +14,7 @@ export function AppShell({
   description: string;
   children: ReactNode;
 }) {
-  const today = new Date().toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+  const { date, isToday, previous, next, goToday } = useDay();
 
   return (
     <div className="flex h-dvh bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
@@ -36,7 +34,20 @@ export function AppShell({
             <p className="truncate text-sm text-neutral-500 dark:text-neutral-400">{description}</p>
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-2">
-            <span className="hidden text-sm text-neutral-500 sm:inline dark:text-neutral-400">{today}</span>
+            <div className="flex items-center gap-1">
+              <span className="inline-flex rotate-90">
+                <WButton size="sm" variant="subtle" color="neutral" icon="chevron" aria-label="Previous day" onClick={previous} />
+              </span>
+              <span className="px-1 text-sm text-neutral-500 dark:text-neutral-400">{formatDay(date)}</span>
+              <span className="inline-flex -rotate-90">
+                <WButton size="sm" variant="subtle" color="neutral" icon="chevron" aria-label="Next day" onClick={next} />
+              </span>
+              {isToday ? null : (
+                <WButton size="sm" variant="subtle" onClick={goToday}>
+                  Today
+                </WButton>
+              )}
+            </div>
             <ThemeButton />
           </div>
         </header>

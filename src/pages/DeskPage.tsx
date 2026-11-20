@@ -18,8 +18,17 @@ const boxType = "application/x-wisp-box";
 
 export function DeskPage() {
   const { date, schedule } = useDay();
+  return <DeskForDay key={date} date={date} schedule={schedule} />;
+}
+
+function DeskForDay({
+  date,
+  schedule,
+}: {
+  date: string;
+  schedule: ReturnType<typeof useDay>["schedule"];
+}) {
   const [desk, setDesk] = useState<DayDesk>(() => loadDesk(date));
-  const owned = useRef(date);
   const deskRef = useRef(desk);
   deskRef.current = desk;
   const [over, setOver] = useState(false);
@@ -37,26 +46,22 @@ export function DeskPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
-        saveDesk(owned.current, desk);
+        saveDesk(date, desk);
       } catch {
         setNotice("The day is full, so the latest change could not be kept.");
       }
     }, 200);
     return () => window.clearTimeout(timer);
-  }, [desk]);
+  }, [date, desk]);
 
   useEffect(() => {
-    if (owned.current === date) return;
-    try {
-      saveDesk(owned.current, deskRef.current);
-    } catch {
-      setNotice("The day is full, so the latest change could not be kept.");
-    }
-    owned.current = date;
-    setDesk(loadDesk(date));
-    setFocusId(null);
-    setClockNote(null);
-    setPreview(null);
+    return () => {
+      try {
+        saveDesk(date, deskRef.current);
+      } catch {
+        // The day is already full. The open page reported it.
+      }
+    };
   }, [date]);
 
   useEffect(() => {

@@ -16,7 +16,13 @@ export function TodayPage() {
   const holdsNow = (block: Block) => nowMinutes >= toMinutes(block.time) && nowMinutes < toMinutes(block.end);
   const active = blocks.find((block) => isOpen(block) && holdsNow(block));
   const next = blocks.find((block) => isOpen(block) && toMinutes(block.time) > nowMinutes);
-  const summary = active ? `Now · ${active.title}` : next ? `Next · ${next.time}–${next.end} ${next.title}` : "The day is done.";
+  const summary = active
+    ? `Now · ${active.title}`
+    : next
+      ? `Next · ${next.time}–${next.end} ${next.title}`
+      : blocks.length === 0
+        ? "Nothing on the clock."
+        : "The day is done.";
 
   function saveItem(value: { title: string; start: string; end: string; kind: BlockKind }) {
     if (editing) {

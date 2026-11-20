@@ -6,7 +6,6 @@ import {
   loadDesk,
   saveDesk,
   shrinkImage,
-  todayKey,
   type DayDesk,
   type DeskBox,
   type DeskTab,
@@ -18,8 +17,11 @@ import { TimeDialog } from "../TimeDialog";
 const boxType = "application/x-wisp-box";
 
 export function DeskPage() {
-  const day = useRef(todayKey()).current;
-  const [desk, setDesk] = useState<DayDesk>(() => loadDesk(day));
+  const { date, schedule } = useDay();
+  const [desk, setDesk] = useState<DayDesk>(() => loadDesk(date));
+  const owned = useRef(date);
+  const deskRef = useRef(desk);
+  deskRef.current = desk;
   const [over, setOver] = useState(false);
   const [notice, setNotice] = useState("");
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -28,7 +30,6 @@ export function DeskPage() {
   const [overTab, setOverTab] = useState<string | null>(null);
   const [clockNote, setClockNote] = useState<NoteBox | null>(null);
   const [preview, setPreview] = useState<ImageBox | null>(null);
-  const { schedule } = useDay();
   const fileRef = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
   const active = desk.tabs.find((tab) => tab.id === desk.active) ?? desk.tabs[0];
@@ -36,13 +37,27 @@ export function DeskPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
-        saveDesk(day, desk);
+        saveDesk(owned.current, desk);
       } catch {
         setNotice("The day is full, so the latest change could not be kept.");
       }
     }, 200);
     return () => window.clearTimeout(timer);
-  }, [day, desk]);
+  }, [desk]);
+
+  useEffect(() => {
+    if (owned.current === date) return;
+    try {
+      saveDesk(owned.current, deskRef.current);
+    } catch {
+      setNotice("The day is full, so the latest change could not be kept.");
+    }
+    owned.current = date;
+    setDesk(loadDesk(date));
+    setFocusId(null);
+    setClockNote(null);
+    setPreview(null);
+  }, [date]);
 
   useEffect(() => {
     if (!focusId) return;

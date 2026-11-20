@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { todayKey } from "./desk";
-import { emptyDay, loadDays, saveDays, type SavedDay } from "./days";
+import { emptyDay, loadDays, saveDays, shiftKey, type SavedDay } from "./days";
 import { looseTasks, todayBlocks, type Block, type BlockKind, type BlockStatus, type Task } from "./sample";
 import { rangeFrom, toMinutes, useMinuteClock } from "./time";
 
@@ -24,6 +24,12 @@ type DayValue = {
   blocks: Block[];
   tasks: Task[];
   now: Date;
+  date: string;
+  isToday: boolean;
+  selectDate: (key: string) => void;
+  previous: () => void;
+  next: () => void;
+  goToday: () => void;
   setStatus: (id: string, status: BlockStatus) => void;
   addTask: (title: string, space?: string) => void;
   removeTask: (id: string) => void;
@@ -48,8 +54,9 @@ function seedToday(days: Record<string, SavedDay>, today: string) {
 export function DayProvider({ children }: { children: ReactNode }) {
   const now = useMinuteClock();
   const today = todayKey(now);
+  const [date, setDate] = useState(() => todayKey());
   const [days, setDays] = useState(() => seedToday(loadDays(), todayKey()));
-  const current = days[today] ?? emptyDay();
+  const current = days[date] ?? emptyDay();
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -63,14 +70,27 @@ export function DayProvider({ children }: { children: ReactNode }) {
   }, [days]);
 
   function change(recipe: (day: SavedDay) => SavedDay) {
-    const key = todayKey();
-    setDays((all) => ({ ...all, [key]: recipe(all[key] ?? emptyDay()) }));
+    setDays((all) => ({ ...all, [date]: recipe(all[date] ?? emptyDay()) }));
   }
 
   const value: DayValue = {
     blocks: current.blocks,
     tasks: current.tasks,
     now,
+    date,
+    isToday: date === today,
+    selectDate(key) {
+      setDate(key);
+    },
+    previous() {
+      setDate((current) => shiftKey(current, -1));
+    },
+    next() {
+      setDate((current) => shiftKey(current, 1));
+    },
+    goToday() {
+      setDate(todayKey());
+    },
     setStatus(id, status) {
       change((day) => ({
         ...day,

@@ -1,4 +1,6 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { todayKey } from "./desk";
+import { emptyDay, loadDays, saveDays, type SavedDay } from "./days";
 import { looseTasks, todayBlocks, type Block, type BlockKind, type BlockStatus, type Task } from "./sample";
 import { rangeFrom, toMinutes, useMinuteClock } from "./time";
 
@@ -32,27 +34,58 @@ type DayValue = {
 
 const DayContext = createContext<DayValue | null>(null);
 
+function seedToday(days: Record<string, SavedDay>, today: string) {
+  if (days[today]) return days;
+  return {
+    ...days,
+    [today]: {
+      blocks: todayBlocks.map((block) => ({ ...block })),
+      tasks: looseTasks.map((task) => ({ ...task })),
+    },
+  };
+}
+
 export function DayProvider({ children }: { children: ReactNode }) {
   const now = useMinuteClock();
-  const [blocks, setBlocks] = useState(todayBlocks);
-  const [tasks, setTasks] = useState(looseTasks);
+  const today = todayKey(now);
+  const [days, setDays] = useState(() => seedToday(loadDays(), todayKey()));
+  const current = days[today] ?? emptyDay();
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        saveDays(days);
+      } catch {
+        // The clock is small. A failed write leaves the open day in memory.
+      }
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [days]);
+
+  function change(recipe: (day: SavedDay) => SavedDay) {
+    const key = todayKey();
+    setDays((all) => ({ ...all, [key]: recipe(all[key] ?? emptyDay()) }));
+  }
 
   const value: DayValue = {
-    blocks,
-    tasks,
+    blocks: current.blocks,
+    tasks: current.tasks,
     now,
     setStatus(id, status) {
-      setBlocks((items) =>
-        items.map((item) => (item.id === id ? { ...item, status: item.status === status ? undefined : status } : item)),
-      );
+      change((day) => ({
+        ...day,
+        blocks: day.blocks.map((item) =>
+          item.id === id ? { ...item, status: item.status === status ? undefined : status } : item,
+        ),
+      }));
     },
     addTask(title, space = "") {
       const trimmed = title.trim();
       if (!trimmed) return;
-      setTasks((items) => [...items, { id: crypto.randomUUID(), title: trimmed, space }]);
+      change((day) => ({ ...day, tasks: [...day.tasks, { id: crypto.randomUUID(), title: trimmed, space }] }));
     },
     removeTask(id) {
-      setTasks((items) => items.filter((item) => item.id !== id));
+      change((day) => ({ ...day, tasks: day.tasks.filter((item) => item.id !== id) }));
     },
     schedule(input) {
       const span = rangeFrom(input.start, input.end);
@@ -65,23 +98,27 @@ export function DayProvider({ children }: { children: ReactNode }) {
         space: input.space ?? "",
         kind: input.kind,
       };
-      setBlocks((items) => [...items, block].sort((a, b) => toMinutes(a.time) - toMinutes(b.time)));
-      if (input.taskId) setTasks((items) => items.filter((item) => item.id !== input.taskId));
+      change((day) => ({
+        ...day,
+        blocks: [...day.blocks, block].sort((a, b) => toMinutes(a.time) - toMinutes(b.time)),
+        tasks: input.taskId ? day.tasks.filter((item) => item.id !== input.taskId) : day.tasks,
+      }));
       return true;
     },
     updateBlock(id, input) {
       const span = rangeFrom(input.start, input.end);
       const title = input.title.trim();
       if (!span || !title) return false;
-      setBlocks((items) =>
-        items
+      change((day) => ({
+        ...day,
+        blocks: day.blocks
           .map((item) => (item.id === id ? { ...item, ...span, title, kind: input.kind } : item))
           .sort((a, b) => toMinutes(a.time) - toMinutes(b.time)),
-      );
+      }));
       return true;
     },
     removeBlock(id) {
-      setBlocks((items) => items.filter((item) => item.id !== id));
+      change((day) => ({ ...day, blocks: day.blocks.filter((item) => item.id !== id) }));
     },
   };
 

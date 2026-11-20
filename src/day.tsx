@@ -23,6 +23,7 @@ type BlockInput = {
 type DayValue = {
   blocks: Block[];
   tasks: Task[];
+  days: Record<string, SavedDay>;
   now: Date;
   date: string;
   isToday: boolean;
@@ -76,6 +77,7 @@ export function DayProvider({ children }: { children: ReactNode }) {
   const value: DayValue = {
     blocks: current.blocks,
     tasks: current.tasks,
+    days,
     now,
     date,
     isToday: date === today,

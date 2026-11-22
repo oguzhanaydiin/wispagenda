@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { WBadge, WButton, WCard } from "wispui";
 import { useDay } from "../day";
 import { kindColor, type Block, type BlockKind, type Task } from "../sample";
-import { TimeDialog } from "../TimeDialog";
+import { MoveDialog, TimeDialog } from "../TimeDialog";
 import { formatClock, toMinutes } from "../time";
 
 export function TodayPage() {
-  const { blocks, tasks, now, isToday, setStatus, addTask, removeTask, schedule, updateBlock, removeBlock } = useDay();
+  const { blocks, tasks, now, date, isToday, setStatus, addTask, removeTask, moveTask, schedule, updateBlock, removeBlock } = useDay();
   const [addOpen, setAddOpen] = useState(false);
   const [scheduling, setScheduling] = useState<Task | null>(null);
+  const [moving, setMoving] = useState<Task | null>(null);
   const [editing, setEditing] = useState<Block | null>(null);
   const label = formatClock(now);
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
@@ -24,9 +25,10 @@ export function TodayPage() {
         ? "Nothing on the clock."
         : "The day is done.";
 
-  function saveItem(value: { title: string; start: string; end: string; kind: BlockKind }) {
+  function saveItem(value: { title: string; start: string; end: string; kind: BlockKind; date?: string }) {
+    const day = value.date ?? date;
     if (editing) {
-      if (updateBlock(editing.id, value)) setEditing(null);
+      if (updateBlock(editing.id, { ...value, date: day })) setEditing(null);
       return;
     }
     if (scheduling) {
@@ -37,33 +39,44 @@ export function TodayPage() {
         end: value.end,
         kind: value.kind,
         taskId: scheduling.id,
+        date: day,
       });
       if (saved) setScheduling(null);
       return;
     }
     if (value.start.slice(0, 5)) {
-      if (schedule({ title: value.title, start: value.start, end: value.end, kind: value.kind })) setAddOpen(false);
+      if (schedule({ title: value.title, start: value.start, end: value.end, kind: value.kind, date: day })) setAddOpen(false);
       return;
     }
-    addTask(value.title);
+    addTask(value.title, "", day);
     setAddOpen(false);
   }
 
   function openAdd() {
     setScheduling(null);
     setEditing(null);
+    setMoving(null);
     setAddOpen(true);
   }
 
   function openSchedule(task: Task) {
     setAddOpen(false);
     setEditing(null);
+    setMoving(null);
     setScheduling(task);
+  }
+
+  function openMove(task: Task) {
+    setAddOpen(false);
+    setEditing(null);
+    setScheduling(null);
+    setMoving(task);
   }
 
   function openEdit(block: Block) {
     setAddOpen(false);
     setScheduling(null);
+    setMoving(null);
     setEditing(block);
   }
 
@@ -82,7 +95,7 @@ export function TodayPage() {
           />
         </WCard>
 
-        <WCard title="Not scheduled" description="A time puts it on the day." ui={{ body: "p-0" }}>
+        <WCard title="Not scheduled" description="A time puts it on a day." ui={{ body: "p-0" }}>
           {tasks.length === 0 ? (
             <p className="px-4 py-3 text-sm text-neutral-400">Nothing waiting.</p>
           ) : (
@@ -97,6 +110,9 @@ export function TodayPage() {
                   </div>
                   <WButton size="sm" variant="subtle" color="neutral" onClick={() => openSchedule(task)}>
                     Schedule
+                  </WButton>
+                  <WButton size="sm" variant="subtle" color="neutral" onClick={() => openMove(task)}>
+                    Move
                   </WButton>
                   <WButton
                     size="sm"
@@ -125,15 +141,16 @@ export function TodayPage() {
         title={editing ? "Edit" : scheduling ? "Schedule" : "Add"}
         description={
           editing
-            ? "Change this block, or take it off the clock."
+            ? "Change this block, send it to another day, or take it off the clock."
             : scheduling
               ? scheduling.title
-              : "A start and end put it on the day. Leave both empty and it stays off the clock."
+              : "A start and end put it on the clock. Leave both empty and it stays loose."
         }
         initialTitle={editing?.title ?? ""}
         initialStart={editing?.time ?? ""}
         initialEnd={editing?.end ?? ""}
         initialKind={editing?.kind ?? "Focus"}
+        initialDate={date}
         titleEditable={scheduling === null}
         timeRequired={scheduling !== null || editing !== null}
         submitLabel={editing ? "Save" : scheduling ? "Schedule" : "Add"}
@@ -146,6 +163,18 @@ export function TodayPage() {
           setEditing(null);
         }}
         onSubmit={saveItem}
+      />
+      <MoveDialog
+        open={moving !== null}
+        initialDate={date}
+        description={moving ? `${moving.title} stays loose.` : ""}
+        onOpenChange={(open) => {
+          if (!open) setMoving(null);
+        }}
+        onMove={(day) => {
+          if (!moving) return;
+          if (moveTask(moving.id, day)) setMoving(null);
+        }}
       />
     </>
   );

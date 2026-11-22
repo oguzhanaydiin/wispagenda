@@ -1,5 +1,5 @@
-export type NoteBox = { id: string; kind: "note"; text: string };
-export type ImageBox = { id: string; kind: "image"; src: string; caption: string };
+export type NoteBox = { id: string; kind: "note"; text: string; x?: number; y?: number };
+export type ImageBox = { id: string; kind: "image"; src: string; caption: string; x?: number; y?: number };
 export type DeskBox = NoteBox | ImageBox;
 
 export type DeskTab = {
@@ -11,6 +11,7 @@ export type DeskTab = {
 export type DayDesk = {
   active: string;
   tabs: DeskTab[];
+  clipboard?: boolean;
 };
 
 const storageKey = "wispagenda-desk";
@@ -34,7 +35,7 @@ export function loadDesk(day: string): DayDesk {
     const desk = saved[day];
     if (!desk?.tabs?.length) return emptyDesk();
     const active = desk.tabs.some((tab) => tab.id === desk.active) ? desk.active : desk.tabs[0].id;
-    return { active, tabs: desk.tabs };
+    return { active, tabs: desk.tabs, clipboard: desk.clipboard === true };
   } catch {
     return emptyDesk();
   }

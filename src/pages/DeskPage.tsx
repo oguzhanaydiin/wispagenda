@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent, type PointerEvent } from "react";
 import { WButton, WModal } from "wispui";
 import { useDay } from "../day";
 import {
@@ -40,7 +40,10 @@ function DeskForDay({
   const [clockNote, setClockNote] = useState<NoteBox | null>(null);
   const [preview, setPreview] = useState<ImageBox | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
   const dragDepth = useRef(0);
+  const moving = useRef<{ id: string; x: number; y: number; px: number; py: number } | null>(null);
+  const [lifted, setLifted] = useState<string | null>(null);
   const active = desk.tabs.find((tab) => tab.id === desk.active) ?? desk.tabs[0];
 
   useEffect(() => {
@@ -98,7 +101,7 @@ function DeskForDay({
   }
 
   function addNote(text = "") {
-    const box: DeskBox = { id: crypto.randomUUID(), kind: "note", text };
+    const box: DeskBox = { id: crypto.randomUUID(), kind: "note", text, ...freshSpot(active.boxes.length, desk.clipboard) };
     update((current) => place(current, box));
     setFocusId(box.id);
   }
@@ -109,7 +112,13 @@ function DeskForDay({
     try {
       const boxes: DeskBox[] = [];
       for (const file of pictures) {
-        boxes.push({ id: crypto.randomUUID(), kind: "image", src: await shrinkImage(file), caption: "" });
+        boxes.push({
+          id: crypto.randomUUID(),
+          kind: "image",
+          src: await shrinkImage(file),
+          caption: "",
+          ...freshSpot(active.boxes.length + boxes.length, desk.clipboard),
+        });
       }
       update((current) => ({
         ...current,
@@ -182,6 +191,58 @@ function DeskForDay({
     setOverTab(null);
   }
 
+  function toggleClipboard() {
+    update((current) => {
+      const clipboard = !current.clipboard;
+      if (!clipboard) return { ...current, clipboard: false };
+      return {
+        ...current,
+        clipboard: true,
+        tabs: current.tabs.map((tab) => ({ ...tab, boxes: spread(tab.boxes) })),
+      };
+    });
+  }
+
+  function moveBox(id: string, x: number, y: number) {
+    update((current) => ({
+      ...current,
+      tabs: current.tabs.map((tab) =>
+        tab.id === current.active
+          ? { ...tab, boxes: tab.boxes.map((box) => (box.id === id ? { ...box, x, y } : box)) }
+          : tab,
+      ),
+    }));
+  }
+
+  function beginMove(event: PointerEvent<HTMLButtonElement>, box: DeskBox) {
+    if (!desk.clipboard) return;
+    event.preventDefault();
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // The pointer can already be gone. The window listeners still follow it.
+    }
+    const origin = { id: box.id, x: box.x ?? 0, y: box.y ?? 0, px: event.clientX, py: event.clientY };
+    moving.current = origin;
+    setLifted(box.id);
+    const move = (native: globalThis.PointerEvent) => {
+      const board = boardRef.current;
+      if (!board) return;
+      const maxX = Math.max(0, board.clientWidth - cardWidth);
+      const x = Math.min(maxX, Math.max(0, origin.x + native.clientX - origin.px));
+      const y = Math.max(0, origin.y + native.clientY - origin.py);
+      moveBox(origin.id, x, y);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      moving.current = null;
+      setLifted(null);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+
   function removeBox(id: string) {
     update((current) => ({
       ...current,
@@ -226,6 +287,15 @@ function DeskForDay({
         </WButton>
         <WButton size="sm" variant="subtle" color="neutral" onClick={() => fileRef.current?.click()}>
           Picture
+        </WButton>
+        <WButton
+          size="sm"
+          variant={desk.clipboard ? "solid" : "subtle"}
+          color={desk.clipboard ? "primary" : "neutral"}
+          aria-pressed={desk.clipboard === true}
+          onClick={toggleClipboard}
+        >
+          Clipboard
         </WButton>
         <input
           ref={fileRef}
@@ -278,8 +348,42 @@ function DeskForDay({
         {active.boxes.length === 0 ? (
           <div className="flex min-h-[28rem] items-center justify-center rounded-xl border border-dashed border-neutral-300 px-6 text-center dark:border-neutral-700">
             <p className="max-w-sm text-sm text-neutral-500 dark:text-neutral-400">
-              Paste a note or a picture, or drop a photo here. Drag a box by its handle to reorder it, or drop it on a tab.
+              {desk.clipboard
+                ? "Paste a note or a picture. Drag a box by its handle to place it on the board."
+                : "Paste a note or a picture, or drop a photo here. Drag a box by its handle to reorder it, or drop it on a tab."}
             </p>
+          </div>
+        ) : desk.clipboard ? (
+          <div
+            ref={boardRef}
+            className="relative min-h-[36rem] rounded-xl border border-dashed border-neutral-300 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-950"
+            style={{ height: boardHeight(active.boxes) }}
+          >
+            {active.boxes.map((box) => (
+              <article
+                key={box.id}
+                className="absolute w-72 rounded-xl border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
+                style={{ left: box.x ?? 0, top: box.y ?? 0, zIndex: lifted === box.id ? 20 : 1 }}
+              >
+                <DeskCard
+                  box={box}
+                  draggable={false}
+                  compact
+                  onPointerDown={(event) => beginMove(event, box)}
+                  onClock={box.kind === "note" ? () => setClockNote(box) : undefined}
+                  onRemove={() => removeBox(box.id)}
+                  onText={(text) => {
+                    if (box.kind !== "note") return;
+                    changeBox(box.id, { ...box, text });
+                  }}
+                  onCaption={(caption) => {
+                    if (box.kind !== "image") return;
+                    changeBox(box.id, { ...box, caption });
+                  }}
+                  onView={box.kind === "image" ? () => setPreview(box) : undefined}
+                />
+              </article>
+            ))}
           </div>
         ) : (
           <ul className="grid items-start gap-4 sm:grid-cols-2">
@@ -306,64 +410,31 @@ function DeskForDay({
                   );
                 }}
               >
-                <div className="mb-2 flex items-center gap-1">
-                  <button
-                    type="button"
-                    draggable
-                    aria-label="Move"
-                    className="cursor-grab px-1 text-neutral-400 active:cursor-grabbing"
-                    onDragStart={(event) => {
-                      event.dataTransfer.setData(boxType, box.id);
-                      event.dataTransfer.effectAllowed = "move";
-                      setDragId(box.id);
-                    }}
-                    onDragEnd={() => {
-                      setDragId(null);
-                      setOverBox(null);
-                      setOverTab(null);
-                    }}
-                  >
-                    ::
-                  </button>
-                  <div className="ml-auto flex gap-1">
-                    {box.kind === "note" ? (
-                      <WButton size="sm" variant="ghost" color="neutral" disabled={!box.text.trim()} onClick={() => setClockNote(box)}>
-                        Clock
-                      </WButton>
-                    ) : null}
-                    <WButton
-                      size="sm"
-                      variant="ghost"
-                      color="neutral"
-                      icon="trash"
-                      aria-label="Remove"
-                      onClick={() => removeBox(box.id)}
-                    />
-                  </div>
-                </div>
-                {box.kind === "note" ? (
-                  <textarea
-                    id={`box-${box.id}`}
-                    value={box.text}
-                    rows={6}
-                    placeholder="Write or paste"
-                    className="w-full resize-none bg-transparent text-sm outline-none"
-                    onChange={(event) => changeBox(box.id, { ...box, text: event.currentTarget.value })}
-                  />
-                ) : (
-                  <figure className="space-y-2">
-                    <button type="button" className="block w-full" aria-label="View picture" onClick={() => setPreview(box)}>
-                      <img src={box.src} alt={box.caption || "Pasted picture"} className="max-h-80 w-full cursor-zoom-in rounded-lg object-contain" />
-                    </button>
-                    <input
-                      value={box.caption}
-                      placeholder="Caption"
-                      aria-label="Caption"
-                      className="w-full bg-transparent text-sm outline-none placeholder:text-neutral-400"
-                      onChange={(event) => changeBox(box.id, { ...box, caption: event.currentTarget.value })}
-                    />
-                  </figure>
-                )}
+                <DeskCard
+                  box={box}
+                  draggable
+                  onDragStart={(event) => {
+                    event.dataTransfer.setData(boxType, box.id);
+                    event.dataTransfer.effectAllowed = "move";
+                    setDragId(box.id);
+                  }}
+                  onDragEnd={() => {
+                    setDragId(null);
+                    setOverBox(null);
+                    setOverTab(null);
+                  }}
+                  onClock={box.kind === "note" ? () => setClockNote(box) : undefined}
+                  onRemove={() => removeBox(box.id)}
+                  onText={(text) => {
+                    if (box.kind !== "note") return;
+                    changeBox(box.id, { ...box, text });
+                  }}
+                  onCaption={(caption) => {
+                    if (box.kind !== "image") return;
+                    changeBox(box.id, { ...box, caption });
+                  }}
+                  onView={box.kind === "image" ? () => setPreview(box) : undefined}
+                />
               </li>
             ))}
           </ul>
@@ -405,6 +476,112 @@ function DeskForDay({
         }}
       />
     </div>
+  );
+}
+
+const cardWidth = 288;
+
+function freshSpot(index: number, clipboard?: boolean) {
+  if (!clipboard) return {};
+  return { x: 20 + (index % 4) * 28, y: 20 + (index % 5) * 28 };
+}
+
+function spread(boxes: DeskBox[]) {
+  return boxes.map((box, index) => {
+    if (typeof box.x === "number" && typeof box.y === "number") return box;
+    const column = index % 2;
+    const row = Math.floor(index / 2);
+    return { ...box, x: 16 + column * (cardWidth + 24), y: 16 + row * 240 };
+  });
+}
+
+function boardHeight(boxes: DeskBox[]) {
+  const bottom = boxes.reduce((highest, box) => Math.max(highest, (box.y ?? 0) + 280), 0);
+  return Math.max(576, bottom + 24);
+}
+
+function DeskCard({
+  box,
+  draggable,
+  compact = false,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onDragStart,
+  onDragEnd,
+  onClock,
+  onRemove,
+  onText,
+  onCaption,
+  onView,
+}: {
+  box: DeskBox;
+  draggable: boolean;
+  compact?: boolean;
+  onPointerDown?: (event: PointerEvent<HTMLButtonElement>) => void;
+  onPointerMove?: (event: PointerEvent<HTMLButtonElement>) => void;
+  onPointerUp?: (event: PointerEvent<HTMLButtonElement>) => void;
+  onDragStart?: (event: DragEvent<HTMLButtonElement>) => void;
+  onDragEnd?: () => void;
+  onClock?: () => void;
+  onRemove: () => void;
+  onText: (text: string) => void;
+  onCaption: (caption: string) => void;
+  onView?: () => void;
+}) {
+  return (
+    <>
+      <div className="mb-2 flex items-center gap-1">
+        <button
+          type="button"
+          draggable={draggable}
+          aria-label="Move"
+          className="cursor-grab touch-none px-1 text-neutral-400 active:cursor-grabbing"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+        >
+          ::
+        </button>
+        <div className="ml-auto flex gap-1">
+          {onClock ? (
+            <WButton size="sm" variant="ghost" color="neutral" disabled={box.kind === "note" && !box.text.trim()} onClick={onClock}>
+              Clock
+            </WButton>
+          ) : null}
+          <WButton size="sm" variant="ghost" color="neutral" icon="trash" aria-label="Remove" onClick={onRemove} />
+        </div>
+      </div>
+      {box.kind === "note" ? (
+        <textarea
+          id={`box-${box.id}`}
+          value={box.text}
+          rows={compact ? 4 : 6}
+          placeholder="Write or paste"
+          className="w-full resize-none bg-transparent text-sm outline-none"
+          onChange={(event) => onText(event.currentTarget.value)}
+        />
+      ) : (
+        <figure className="space-y-2">
+          <button type="button" className="block w-full" aria-label="View picture" onClick={onView}>
+            <img
+              src={box.src}
+              alt={box.caption || "Pasted picture"}
+              className={`${compact ? "max-h-48" : "max-h-80"} w-full cursor-zoom-in rounded-lg object-contain`}
+            />
+          </button>
+          <input
+            value={box.caption}
+            placeholder="Caption"
+            aria-label="Caption"
+            className="w-full bg-transparent text-sm outline-none placeholder:text-neutral-400"
+            onChange={(event) => onCaption(event.currentTarget.value)}
+          />
+        </figure>
+      )}
+    </>
   );
 }
 

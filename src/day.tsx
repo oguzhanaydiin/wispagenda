@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { todayKey } from "./desk";
-import { emptyDay, loadDays, saveDays, shiftKey, type SavedDay } from "./days";
+import { emptyDay, isDayKey, loadDays, saveDays, shiftKey, type SavedDay } from "./days";
 import { looseTasks, todayBlocks, type Block, type BlockKind, type BlockStatus, type Task } from "./sample";
 import { rangeFrom, toMinutes, useMinuteClock } from "./time";
 
@@ -11,6 +11,7 @@ type ScheduleInput = {
   end: string;
   kind: BlockKind;
   taskId?: string;
+  date?: string;
 };
 
 type BlockInput = {
@@ -18,6 +19,7 @@ type BlockInput = {
   start: string;
   end: string;
   kind: BlockKind;
+  date?: string;
 };
 
 type DayValue = {
@@ -32,8 +34,9 @@ type DayValue = {
   next: () => void;
   goToday: () => void;
   setStatus: (id: string, status: BlockStatus) => void;
-  addTask: (title: string, space?: string) => void;
+  addTask: (title: string, space?: string, date?: string) => void;
   removeTask: (id: string) => void;
+  moveTask: (id: string, date: string) => boolean;
   schedule: (input: ScheduleInput) => boolean;
   updateBlock: (id: string, input: BlockInput) => boolean;
   removeBlock: (id: string) => void;
@@ -101,18 +104,42 @@ export function DayProvider({ children }: { children: ReactNode }) {
         ),
       }));
     },
-    addTask(title, space = "") {
+    addTask(title, space = "", toDate) {
       const trimmed = title.trim();
       if (!trimmed) return;
-      change((day) => ({ ...day, tasks: [...day.tasks, { id: crypto.randomUUID(), title: trimmed, space }] }));
+      const target = picked(toDate, date);
+      const task: Task = { id: crypto.randomUUID(), title: trimmed, space };
+      setDays((all) => {
+        const there = all[target] ?? emptyDay();
+        return { ...all, [target]: { ...there, tasks: [...there.tasks, task] } };
+      });
     },
     removeTask(id) {
       change((day) => ({ ...day, tasks: day.tasks.filter((item) => item.id !== id) }));
+    },
+    moveTask(id, toDate) {
+      if (!isDayKey(toDate)) return false;
+      const source = days[date] ?? emptyDay();
+      if (!source.tasks.some((item) => item.id === id)) return false;
+      if (toDate === date) return true;
+      setDays((all) => {
+        const from = all[date] ?? emptyDay();
+        const task = from.tasks.find((item) => item.id === id);
+        if (!task) return all;
+        const there = all[toDate] ?? emptyDay();
+        return {
+          ...all,
+          [date]: { ...from, tasks: from.tasks.filter((item) => item.id !== id) },
+          [toDate]: { ...there, tasks: [...there.tasks.filter((item) => item.id !== id), task] },
+        };
+      });
+      return true;
     },
     schedule(input) {
       const span = rangeFrom(input.start, input.end);
       const title = input.title.trim();
       if (!span || !title) return false;
+      const target = picked(input.date, date);
       const block: Block = {
         id: crypto.randomUUID(),
         ...span,
@@ -120,23 +147,39 @@ export function DayProvider({ children }: { children: ReactNode }) {
         space: input.space ?? "",
         kind: input.kind,
       };
-      change((day) => ({
-        ...day,
-        blocks: [...day.blocks, block].sort((a, b) => toMinutes(a.time) - toMinutes(b.time)),
-        tasks: input.taskId ? day.tasks.filter((item) => item.id !== input.taskId) : day.tasks,
-      }));
+      setDays((all) => {
+        const source = all[date] ?? emptyDay();
+        const tasks = input.taskId ? source.tasks.filter((item) => item.id !== input.taskId) : source.tasks;
+        if (target === date) return { ...all, [date]: withBlock({ ...source, tasks }, block) };
+        const there = all[target] ?? emptyDay();
+        return {
+          ...all,
+          [date]: { ...source, tasks },
+          [target]: withBlock(there, block),
+        };
+      });
       return true;
     },
     updateBlock(id, input) {
       const span = rangeFrom(input.start, input.end);
       const title = input.title.trim();
       if (!span || !title) return false;
-      change((day) => ({
-        ...day,
-        blocks: day.blocks
-          .map((item) => (item.id === id ? { ...item, ...span, title, kind: input.kind } : item))
-          .sort((a, b) => toMinutes(a.time) - toMinutes(b.time)),
-      }));
+      const source = days[date] ?? emptyDay();
+      const existing = source.blocks.find((item) => item.id === id);
+      if (!existing) return false;
+      const target = picked(input.date, date);
+      const next: Block = { ...existing, ...span, title, kind: input.kind };
+      setDays((all) => {
+        const from = all[date] ?? emptyDay();
+        if (!from.blocks.some((item) => item.id === id)) return all;
+        if (target === date) return { ...all, [date]: withBlock(from, next) };
+        const there = all[target] ?? emptyDay();
+        return {
+          ...all,
+          [date]: { ...from, blocks: from.blocks.filter((item) => item.id !== id) },
+          [target]: withBlock(there, next),
+        };
+      });
       return true;
     },
     removeBlock(id) {
@@ -151,4 +194,17 @@ export function useDay() {
   const value = useContext(DayContext);
   if (!value) throw new Error("useDay must be used inside DayProvider");
   return value;
+}
+
+function picked(key: string | undefined, fallback: string) {
+  return key && isDayKey(key) ? key : fallback;
+}
+
+function withBlock(day: SavedDay, block: Block) {
+  return {
+    ...day,
+    blocks: [...day.blocks.filter((item) => item.id !== block.id), block].sort(
+      (a, b) => toMinutes(a.time) - toMinutes(b.time),
+    ),
+  };
 }

@@ -10,6 +10,7 @@ export function TimeDialog({
   initialStart = "",
   initialEnd = "",
   initialKind = "Focus",
+  initialDate,
   titleEditable = true,
   timeRequired = false,
   submitLabel,
@@ -25,18 +26,20 @@ export function TimeDialog({
   initialStart?: string;
   initialEnd?: string;
   initialKind?: BlockKind;
+  initialDate?: string;
   titleEditable?: boolean;
   timeRequired?: boolean;
   submitLabel: string;
   submitIcon?: "plus" | "check";
   onOpenChange: (open: boolean) => void;
-  onSubmit: (value: { title: string; start: string; end: string; kind: BlockKind }) => void;
+  onSubmit: (value: { title: string; start: string; end: string; kind: BlockKind; date?: string }) => void;
   onDelete?: () => void;
 }) {
   const [itemTitle, setItemTitle] = useState(initialTitle);
   const [start, setStart] = useState(initialStart);
   const [end, setEnd] = useState(initialEnd);
   const [kind, setKind] = useState<BlockKind>(initialKind);
+  const [day, setDay] = useState(initialDate ?? "");
 
   useEffect(() => {
     if (!open) return;
@@ -44,11 +47,12 @@ export function TimeDialog({
     setStart(initialStart);
     setEnd(initialEnd);
     setKind(initialKind);
-  }, [open, initialTitle, initialStart, initialEnd, initialKind]);
+    setDay(initialDate ?? "");
+  }, [open, initialTitle, initialStart, initialEnd, initialKind, initialDate]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    onSubmit({ title: itemTitle, start, end, kind });
+    onSubmit({ title: itemTitle, start, end, kind, ...(initialDate !== undefined ? { date: day } : {}) });
   }
 
   return (
@@ -88,6 +92,11 @@ export function TimeDialog({
       )}
     >
       <form id="time-form" className="space-y-4" onSubmit={submit}>
+        {initialDate !== undefined ? (
+          <WFormField label="Day">
+            <WInput type="date" required aria-label="Day" value={day} onChange={(event) => setDay(event.currentTarget.value)} />
+          </WFormField>
+        ) : null}
         {titleEditable ? (
           <WFormField label="Title">
             <WInput
@@ -122,6 +131,61 @@ export function TimeDialog({
             value={kind}
             onChange={(event) => setKind(event.currentTarget.value as BlockKind)}
           />
+        </WFormField>
+      </form>
+    </WModal>
+  );
+}
+
+export function MoveDialog({
+  open,
+  initialDate,
+  description,
+  onOpenChange,
+  onMove,
+}: {
+  open: boolean;
+  initialDate: string;
+  description: string;
+  onOpenChange: (open: boolean) => void;
+  onMove: (date: string) => void;
+}) {
+  const [day, setDay] = useState(initialDate);
+
+  useEffect(() => {
+    if (!open) return;
+    setDay(initialDate);
+  }, [open, initialDate]);
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onMove(day);
+  }
+
+  return (
+    <WModal
+      open={open}
+      onOpenChange={onOpenChange}
+      size="sm"
+      title="Move"
+      description={description}
+      close={
+        <WButton color="neutral" variant="subtle" size="sm" icon="x" aria-label="Close" onClick={() => onOpenChange(false)} />
+      }
+      footer={({ close }) => (
+        <>
+          <WButton color="neutral" variant="subtle" onClick={close}>
+            Cancel
+          </WButton>
+          <WButton type="submit" form="move-form">
+            Move
+          </WButton>
+        </>
+      )}
+    >
+      <form id="move-form" onSubmit={submit}>
+        <WFormField label="Day">
+          <WInput type="date" required autoFocus aria-label="Day" value={day} onChange={(event) => setDay(event.currentTarget.value)} />
         </WFormField>
       </form>
     </WModal>

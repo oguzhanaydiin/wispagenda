@@ -2,14 +2,15 @@ import { useState } from "react";
 import { WButton, WCard, WInput } from "wispui";
 import { useDay } from "../day";
 import type { BlockKind, Task } from "../sample";
-import { TimeDialog } from "../TimeDialog";
+import { MoveDialog, TimeDialog } from "../TimeDialog";
 
 export function TasksPage() {
-  const { tasks, addTask, removeTask, schedule } = useDay();
+  const { tasks, date, addTask, removeTask, moveTask, schedule } = useDay();
   const [title, setTitle] = useState("");
   const [scheduling, setScheduling] = useState<Task | null>(null);
+  const [moving, setMoving] = useState<Task | null>(null);
 
-  function save(value: { title: string; start: string; end: string; kind: BlockKind }) {
+  function save(value: { title: string; start: string; end: string; kind: BlockKind; date?: string }) {
     if (!scheduling) return;
     const saved = schedule({
       title: scheduling.title,
@@ -18,6 +19,7 @@ export function TasksPage() {
       end: value.end,
       kind: value.kind,
       taskId: scheduling.id,
+      date: value.date ?? date,
     });
     if (saved) setScheduling(null);
   }
@@ -45,7 +47,7 @@ export function TasksPage() {
         </WButton>
       </form>
 
-      <WCard title="Loose" description="Give one a time and it joins today." ui={{ body: "p-0" }}>
+      <WCard title="Loose" description="Give one a time and it joins that day." ui={{ body: "p-0" }}>
         {tasks.length === 0 ? (
           <p className="px-4 py-3 text-sm text-neutral-400">Nothing waiting.</p>
         ) : (
@@ -58,6 +60,9 @@ export function TasksPage() {
                 </div>
                 <WButton size="sm" variant="subtle" color="neutral" onClick={() => setScheduling(task)}>
                   Schedule
+                </WButton>
+                <WButton size="sm" variant="subtle" color="neutral" onClick={() => setMoving(task)}>
+                  Move
                 </WButton>
                 <WButton
                   size="sm"
@@ -79,11 +84,24 @@ export function TasksPage() {
         description={scheduling?.title ?? ""}
         titleEditable={false}
         timeRequired
+        initialDate={date}
         submitLabel="Schedule"
         onOpenChange={(open) => {
           if (!open) setScheduling(null);
         }}
         onSubmit={save}
+      />
+      <MoveDialog
+        open={moving !== null}
+        initialDate={date}
+        description={moving ? `${moving.title} stays loose.` : ""}
+        onOpenChange={(open) => {
+          if (!open) setMoving(null);
+        }}
+        onMove={(day) => {
+          if (!moving) return;
+          if (moveTask(moving.id, day)) setMoving(null);
+        }}
       />
     </div>
   );

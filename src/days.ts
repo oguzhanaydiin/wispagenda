@@ -31,6 +31,13 @@ export function saveDays(days: Record<string, SavedDay>) {
   localStorage.setItem(storageKey, JSON.stringify(days));
 }
 
+export function isDayKey(key: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return false;
+  const [year, month, day] = key.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+}
+
 export function shiftKey(key: string, amount: number) {
   const [year, month, day] = key.split("-").map(Number);
   const date = new Date(year, month - 1, day);

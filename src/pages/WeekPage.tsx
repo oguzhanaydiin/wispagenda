@@ -1,7 +1,7 @@
 import { WBadge, WCard } from "wispui";
 import { useDay } from "../day";
 import { todayKey } from "../desk";
-import { kindColor, type Block } from "../sample";
+import { kindColor, type Block, type Task } from "../sample";
 
 export function WeekPage() {
   const { days, date, now, selectDate } = useDay();
@@ -15,10 +15,12 @@ export function WeekPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <WCard title="This week" description="Each day keeps its own clock." ui={{ body: "p-0" }}>
+      <WCard title="This week" description="Each day's clock, and what is still loose." ui={{ body: "p-0" }}>
         <ul>
           {week.map((day) => {
-            const blocks = days[day.key]?.blocks ?? [];
+            const saved = days[day.key];
+            const blocks = saved?.blocks ?? [];
+            const tasks = saved?.tasks ?? [];
             return (
               <li key={day.key} className="border-b border-neutral-200 last:border-b-0 dark:border-neutral-800">
                 <div
@@ -35,12 +37,15 @@ export function WeekPage() {
                   <div className={`w-24 shrink-0 text-sm ${day.today ? "font-semibold" : "text-neutral-500 dark:text-neutral-400"}`}>
                     {day.label}
                   </div>
-                  {blocks.length === 0 ? (
+                  {blocks.length === 0 && tasks.length === 0 ? (
                     <p className="text-sm text-neutral-400">Nothing yet.</p>
                   ) : (
                     <ul className="min-w-0 flex-1 space-y-2">
                       {blocks.map((block) => (
                         <WeekRow key={block.id} block={block} />
+                      ))}
+                      {tasks.map((task) => (
+                        <LooseRow key={task.id} task={task} />
                       ))}
                     </ul>
                   )}
@@ -51,6 +56,15 @@ export function WeekPage() {
         </ul>
       </WCard>
     </div>
+  );
+}
+
+function LooseRow({ task }: { task: Task }) {
+  return (
+    <li className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
+      <span className="w-28 shrink-0">Loose</span>
+      <span className="min-w-0 flex-1 truncate">{task.title}</span>
+    </li>
   );
 }
 

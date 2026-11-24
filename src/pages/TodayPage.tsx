@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { WBadge, WButton, WCard } from "wispui";
 import { useDay } from "../day";
+import { todayKey } from "../desk";
 import { kindColor, type Block, type BlockKind, type Task } from "../sample";
 import { MoveDialog, TimeDialog } from "../TimeDialog";
 import { formatClock, toMinutes } from "../time";
@@ -15,15 +16,10 @@ export function TodayPage() {
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const isOpen = (block: Block) => block.status !== "done" && block.status !== "skipped";
   const holdsNow = (block: Block) => nowMinutes >= toMinutes(block.time) && nowMinutes < toMinutes(block.end);
-  const active = blocks.find((block) => isOpen(block) && holdsNow(block));
-  const next = blocks.find((block) => isOpen(block) && toMinutes(block.time) > nowMinutes);
-  const summary = active
-    ? `Now · ${active.title}`
-    : next
-      ? `Next · ${next.time}–${next.end} ${next.title}`
-      : blocks.length === 0
-        ? "Nothing on the clock."
-        : "The day is done.";
+  const active = isToday ? blocks.find((block) => isOpen(block) && holdsNow(block)) : undefined;
+  const next = isToday ? blocks.find((block) => isOpen(block) && toMinutes(block.time) > nowMinutes) : undefined;
+  const when = isToday ? "today" : date > todayKey(now) ? "future" : "past";
+  const summary = clockSummary(when, blocks, blocks.filter(isOpen).length, active, next);
 
   function saveItem(value: { title: string; start: string; end: string; kind: BlockKind; date?: string }) {
     const day = value.date ?? date;
@@ -247,8 +243,8 @@ function DayGrid({
         const end = toMinutes(block.end);
         const height = Math.max(((end - start) / 60) * HOUR - 3, 22);
         const open = block.status !== "done" && block.status !== "skipped";
-        const current = open && nowMinutes >= start && nowMinutes < end;
-        const quiet = !open || end <= nowMinutes;
+        const current = showNow && open && nowMinutes >= start && nowMinutes < end;
+        const quiet = !open || (showNow && end <= nowMinutes);
         const roomy = height >= 48;
         const detail = [block.space, block.status === "done" ? "Done" : block.status === "skipped" ? "Skipped" : ""]
           .filter(Boolean)
@@ -335,6 +331,18 @@ function NowTime({ time }: { time: string }) {
       {time}
     </time>
   );
+}
+
+function clockSummary(when: "today" | "past" | "future", blocks: Block[], openCount: number, active?: Block, next?: Block) {
+  if (when === "today") {
+    if (active) return `Now · ${active.title}`;
+    if (next) return `Next · ${next.time}–${next.end} ${next.title}`;
+    return blocks.length === 0 ? "Nothing on the clock." : "The day is done.";
+  }
+  if (blocks.length === 0) return "Nothing on the clock.";
+  if (openCount === 0) return "The day is closed.";
+  if (when === "past") return openCount === 1 ? "1 left unmarked." : `${openCount} left unmarked.`;
+  return openCount === 1 ? "1 still to come." : `${openCount} still to come.`;
 }
 
 function pad(value: number) {

@@ -1,20 +1,24 @@
 import { WCard } from "wispui";
 import { useDay } from "../day";
+import { todayKey } from "../desk";
 import type { Block } from "../sample";
 import { toMinutes } from "../time";
 
 export function ReviewPage() {
-  const { blocks, tasks, now } = useDay();
+  const { blocks, tasks, now, date, isToday } = useDay();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const when = isToday ? "today" : date > todayKey(now) ? "future" : "past";
   const done = blocks.filter((block) => block.status === "done");
   const skipped = blocks.filter((block) => block.status === "skipped");
-  const unmarked = blocks.filter((block) => !block.status && toMinutes(block.end) <= nowMinutes);
-  const ahead = blocks.filter((block) => !block.status && toMinutes(block.end) > nowMinutes);
-  const closed = done.length === blocks.length && tasks.length === 0;
+  const open = blocks.filter((block) => !block.status);
+  const unmarked = when === "future" ? [] : when === "past" ? open : open.filter((block) => toMinutes(block.end) <= nowMinutes);
+  const ahead = when === "past" ? [] : when === "future" ? open : open.filter((block) => toMinutes(block.end) > nowMinutes);
+  const closed = blocks.length > 0 && done.length === blocks.length && tasks.length === 0;
+  const title = closed ? "The day is closed." : when === "future" ? "What is planned" : when === "past" ? "How the day went" : "The day so far";
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
-      <WCard title={closed ? "The day is closed." : "The day so far"} description={summary(done.length, skipped.length, ahead.length, tasks.length)}>
+      <WCard title={title} description={summary(when, done.length, skipped.length, unmarked.length, ahead.length, tasks.length)}>
         <div className="grid gap-6 sm:grid-cols-2">
           <Group title="Done" items={done.map(entry)} empty="Nothing marked done." />
           <Group title="Skipped" items={skipped.map(entry)} empty="Nothing skipped." />
@@ -50,6 +54,8 @@ function entry(block: Block) {
   return { id: block.id, label: `${block.time}–${block.end} ${block.title}` };
 }
 
-function summary(done: number, skipped: number, ahead: number, loose: number) {
+function summary(when: "today" | "past" | "future", done: number, skipped: number, unmarked: number, ahead: number, loose: number) {
+  if (when === "past") return `${done} done · ${skipped} skipped · ${unmarked} unmarked · ${loose} loose`;
+  if (when === "future") return `${ahead} planned · ${done} done · ${skipped} skipped · ${loose} loose`;
   return `${done} done · ${skipped} skipped · ${ahead} still ahead · ${loose} loose`;
 }

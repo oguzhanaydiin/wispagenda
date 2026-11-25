@@ -13,18 +13,24 @@ export function ReviewPage() {
   const open = blocks.filter((block) => !block.status);
   const unmarked = when === "future" ? [] : when === "past" ? open : open.filter((block) => toMinutes(block.end) <= nowMinutes);
   const ahead = when === "past" ? [] : when === "future" ? open : open.filter((block) => toMinutes(block.end) > nowMinutes);
-  const closed = blocks.length > 0 && done.length === blocks.length && tasks.length === 0;
+  const finished = tasks.filter((task) => task.status === "done");
+  const waiting = tasks.filter((task) => task.status !== "done");
+  const closed = blocks.length > 0 && done.length === blocks.length && waiting.length === 0;
   const title = closed ? "The day is closed." : when === "future" ? "What is planned" : when === "past" ? "How the day went" : "The day so far";
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
-      <WCard title={title} description={summary(when, done.length, skipped.length, unmarked.length, ahead.length, tasks.length)}>
+      <WCard title={title} description={summary(when, done.length + finished.length, skipped.length, unmarked.length, ahead.length, waiting.length)}>
         <div className="grid gap-6 sm:grid-cols-2">
-          <Group title="Done" items={done.map(entry)} empty="Nothing marked done." />
+          <Group
+            title="Done"
+            items={[...done.map(entry), ...finished.map((task) => ({ id: task.id, label: task.title }))]}
+            empty="Nothing marked done."
+          />
           <Group title="Skipped" items={skipped.map(entry)} empty="Nothing skipped." />
           <Group title="Unmarked" items={unmarked.map(entry)} empty="Nothing slipped past." />
           <Group title="Still ahead" items={ahead.map(entry)} empty="Nothing left on the clock." />
-          <Group title="Loose" items={tasks.map((task) => ({ id: task.id, label: task.title }))} empty="Nothing waiting." />
+          <Group title="Loose" items={waiting.map((task) => ({ id: task.id, label: task.title }))} empty="Nothing waiting." />
         </div>
       </WCard>
     </div>

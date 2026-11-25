@@ -18,6 +18,7 @@ export type Task = {
   id: string;
   title: string;
   space: string;
+  status?: "done";
 };
 
 export const blockKinds: BlockKind[] = ["Class", "Focus", "Meeting", "Break"];

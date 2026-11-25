@@ -5,7 +5,7 @@ import type { BlockKind, Task } from "../sample";
 import { MoveDialog, TimeDialog } from "../TimeDialog";
 
 export function TasksPage() {
-  const { tasks, date, addTask, removeTask, moveTask, schedule } = useDay();
+  const { tasks, date, addTask, removeTask, setTaskStatus, moveTask, schedule } = useDay();
   const [title, setTitle] = useState("");
   const [scheduling, setScheduling] = useState<Task | null>(null);
   const [moving, setMoving] = useState<Task | null>(null);
@@ -52,12 +52,20 @@ export function TasksPage() {
           <p className="px-4 py-3 text-sm text-neutral-400">Nothing waiting.</p>
         ) : (
           <ul>
-            {tasks.map((task) => (
+            {orderedTasks(tasks).map((task) => (
               <li key={task.id} className="flex items-center gap-3 border-b border-neutral-200 px-4 py-3 last:border-b-0 dark:border-neutral-800">
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{task.title}</div>
+                  <div className={`truncate text-sm ${task.status === "done" ? "text-neutral-400" : "font-medium"}`}>{task.title}</div>
                   {task.space ? <div className="truncate text-xs text-neutral-500 dark:text-neutral-400">{task.space}</div> : null}
                 </div>
+                <WButton
+                  size="sm"
+                  icon="check"
+                  aria-label={task.status === "done" ? `Mark ${task.title} not done` : `Done ${task.title}`}
+                  variant={task.status === "done" ? "subtle" : "ghost"}
+                  color={task.status === "done" ? "success" : "neutral"}
+                  onClick={() => setTaskStatus(task.id)}
+                />
                 <WButton size="sm" variant="subtle" color="neutral" onClick={() => setScheduling(task)}>
                   Schedule
                 </WButton>
@@ -105,4 +113,8 @@ export function TasksPage() {
       />
     </div>
   );
+}
+
+function orderedTasks(tasks: Task[]) {
+  return [...tasks].sort((a, b) => Number(a.status === "done") - Number(b.status === "done"));
 }

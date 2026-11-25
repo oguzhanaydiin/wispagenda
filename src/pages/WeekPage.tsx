@@ -60,9 +60,10 @@ export function WeekPage() {
 }
 
 function LooseRow({ task }: { task: Task }) {
+  const quiet = task.status === "done";
   return (
-    <li className="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400">
-      <span className="w-28 shrink-0">Loose</span>
+    <li className={`flex items-center gap-2 text-sm ${quiet ? "text-neutral-400" : "text-neutral-500 dark:text-neutral-400"}`}>
+      <span className="w-28 shrink-0">{quiet ? "Done" : "Loose"}</span>
       <span className="min-w-0 flex-1 truncate">{task.title}</span>
     </li>
   );

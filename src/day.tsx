@@ -36,6 +36,7 @@ type DayValue = {
   setStatus: (id: string, status: BlockStatus) => void;
   addTask: (title: string, space?: string, date?: string) => void;
   removeTask: (id: string) => void;
+  setTaskStatus: (id: string) => void;
   moveTask: (id: string, date: string) => boolean;
   schedule: (input: ScheduleInput) => boolean;
   updateBlock: (id: string, input: BlockInput) => boolean;
@@ -116,6 +117,14 @@ export function DayProvider({ children }: { children: ReactNode }) {
     },
     removeTask(id) {
       change((day) => ({ ...day, tasks: day.tasks.filter((item) => item.id !== id) }));
+    },
+    setTaskStatus(id) {
+      change((day) => ({
+        ...day,
+        tasks: day.tasks.map((item) =>
+          item.id === id ? { ...item, status: item.status === "done" ? undefined : "done" } : item,
+        ),
+      }));
     },
     moveTask(id, toDate) {
       if (!isDayKey(toDate)) return false;
